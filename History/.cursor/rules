@@ -1,0 +1,345 @@
+## ⚙️ **FINAL MASTER PROMPT — History Onchain Dashboard Implementation**
+
+```markdown
+# TASK: Implement Full History Onchain Dashboard
+Update and integrate all core systems for History Onchain:
+- Dashboard UI (as per reference screenshot)
+- Camera scanning + discovery capture
+- Base Pay wallet integration (ethers.js)
+- Optional Supabase endpoints for persistence
+
+---
+
+## 🧱 PROJECT CONTEXT
+
+**App Name:** History Onchain  
+**Goal:** Let users discover historical monuments, learn, and earn rewards (points or USDC on Base Mainnet).  
+**Tech Stack:** Next.js 15 + React 19 + TypeScript + TailwindCSS + ethers.js + Supabase  
+
+---
+
+## 🎯 CORE OBJECTIVES
+
+1. **Dashboard UI + Logic**
+   - Display user progress (Level, Points, Discoveries)
+   - Show progress bar and reward info
+   - Integrate Base Pay card (wallet + micropayment)
+   - Add “Start Camera” section for monument discovery
+   - Use clean, responsive Tailwind design (as per screenshot)
+
+2. **Camera System**
+   - Implement full camera functionality (preview, capture, stop)
+   - Follow the “Camera Functionality Implementation Guide”
+   - Include proper permissions, cleanup, and state management
+   - Provide loading and error feedback
+   - Pass captured image data to Supabase if enabled
+
+3. **Base Pay Wallet Integration**
+   - Use `ethers.js` for wallet connection and address retrieval
+   - Simulate Base Pay micropayments (`$0.01 USD → USDC on Base Mainnet`)
+   - Use placeholder authentication flow for Base Pay
+   - Provide mock transaction success and failure alerts
+
+4. **Optional Supabase Persistence**
+   - Create a lightweight backend integration using Supabase JS SDK
+   - Store:
+     - User profile (address, level, points)
+     - Discovery logs (image metadata, timestamp)
+     - Monument recognition results
+   - Include endpoint placeholders for fetching and updating data
+
+---
+
+## 📁 FILE STRUCTURE
+
+```
+
+/app/dashboard/page.tsx          → Main dashboard page
+/components/CameraComponent.tsx  → Camera logic UI
+/lib/basepay.ts                  → Base Pay connection + payment simulation
+/lib/supabaseClient.ts           → Supabase client setup
+/lib/supabaseApi.ts              → Data persistence logic (optional)
+
+````
+
+---
+
+## 💻 DASHBOARD CODE (app/dashboard/page.tsx)
+
+```typescript
+'use client';
+
+import { useState, useEffect } from 'react';
+import CameraComponent from '@/components/CameraComponent';
+import { connectWallet, makeBasePayment } from '@/lib/basepay';
+import { fetchUserProfile, updateDiscovery } from '@/lib/supabaseApi';
+
+export default function Dashboard() {
+  const [showCamera, setShowCamera] = useState(false);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isPaying, setIsPaying] = useState(false);
+  const [userData, setUserData] = useState({ level: 1, points: 0, discoveries: 0 });
+
+  // Fetch persisted user data if wallet is connected
+  useEffect(() => {
+    if (walletAddress) {
+      fetchUserProfile(walletAddress).then((data) => {
+        if (data) setUserData(data);
+      });
+    }
+  }, [walletAddress]);
+
+  const handleConnectWallet = async () => {
+    try {
+      const address = await connectWallet();
+      setWalletAddress(address);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to connect wallet');
+    }
+  };
+
+  const handlePayment = async () => {
+    setIsPaying(true);
+    try {
+      await makeBasePayment();
+      alert('Payment successful!');
+    } catch (err) {
+      console.error(err);
+      alert('Payment failed.');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const handleDiscoveryCaptured = async (imageData: string) => {
+    // Simulate recognition + update Supabase
+    const updated = await updateDiscovery(walletAddress, imageData);
+    if (updated) setUserData(updated);
+    setShowCamera(false);
+  };
+
+  if (showCamera)
+    return <CameraComponent onClose={() => setShowCamera(false)} onCapture={handleDiscoveryCaptured} />;
+
+  return (
+    <div className="min-h-screen bg-blue-50 flex flex-col items-center p-6">
+      <h1 className="text-3xl font-bold mb-2 text-gray-900">History Onchain</h1>
+      <p className="text-gray-600 mb-8">Discover monuments, learn history, earn rewards</p>
+
+      {/* User Progress */}
+      <div className="bg-white shadow-md rounded-xl p-4 mb-6 w-full max-w-md text-center">
+        <p className="text-gray-500">Level {userData.level}</p>
+        <h2 className="text-indigo-600 text-2xl font-semibold">{userData.points} Points</h2>
+        <p className="text-sm text-gray-500">{userData.discoveries} Discoveries</p>
+        <div className="mt-2 w-full bg-gray-200 h-2 rounded-full">
+          <div
+            className="bg-indigo-600 h-2 rounded-full transition-all"
+            style={{ width: `${Math.min((userData.discoveries / 10) * 100, 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Base Pay Wallet */}
+      <div className="bg-white shadow-md rounded-xl p-6 mb-6 w-full max-w-md">
+        <h3 className="font-bold text-gray-800 mb-2">Base Pay</h3>
+        <p className="text-gray-500 mb-4">Seamless USDC payments on Base Mainnet</p>
+        <div className="border rounded-lg p-3 mb-4 text-sm text-gray-700">
+          Payment: $0.01 USD → USDC on Base Mainnet
+        </div>
+
+        {!walletAddress ? (
+          <button
+            onClick={handleConnectWallet}
+            className="bg-blue-600 text-white w-full py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Sign in with Base
+          </button>
+        ) : (
+          <>
+            <div className="text-gray-700 text-sm mb-2">
+              Connected: <span className="font-mono">{walletAddress}</span>
+            </div>
+            <button
+              disabled={isPaying}
+              onClick={handlePayment}
+              className="bg-green-600 text-white w-full py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50"
+            >
+              {isPaying ? 'Processing Payment…' : 'Send $0.01 USDC'}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Discovery Section */}
+      <div className="bg-white shadow-md rounded-xl p-6 text-center w-full max-w-md">
+        <div className="text-indigo-600 mb-3">
+          <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" strokeWidth="2"
+            viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round"
+            d="M12 11.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm0 0V7m0 9v2.5m4.5-4.5H19m-9 0H5.5" /></svg>
+        </div>
+        <h3 className="font-semibold text-gray-800 mb-2">Start Your Discovery</h3>
+        <p className="text-gray-600 text-sm mb-4">
+          Point your camera at a historical monument to learn about its history and earn points!
+        </p>
+        <button
+          onClick={() => setShowCamera(true)}
+          className="bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 transition-colors w-full"
+        >
+          Start Camera
+        </button>
+      </div>
+
+      <p className="mt-8 text-sm text-gray-500">Explore history, one monument at a time.</p>
+    </div>
+  );
+}
+````
+
+---
+
+## 💰 BASE PAY LOGIC (lib/basepay.ts)
+
+```typescript
+import { ethers } from 'ethers';
+
+// Connect to wallet on Base Mainnet
+export async function connectWallet(): Promise<string> {
+  if (!window.ethereum) throw new Error('MetaMask not detected');
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  const accounts = await provider.send('eth_requestAccounts', []);
+  const address = accounts[0];
+  console.log('Connected wallet:', address);
+  return address;
+}
+
+// Simulate a micropayment on Base Pay
+export async function makeBasePayment(): Promise<void> {
+  console.log('Simulating Base Pay payment...');
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  console.log('Payment simulated successfully.');
+}
+```
+
+---
+
+## 📷 CAMERA COMPONENT (components/CameraComponent.tsx)
+
+Use your **Camera Functionality Implementation Guide** here (unchanged).
+Add an `onCapture` prop to pass captured image data (base64) to Supabase.
+Ensure cleanup and permission handling are implemented properly.
+
+---
+
+## 🗄️ SUPABASE CLIENT (lib/supabaseClient.ts)
+
+```typescript
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+```
+
+---
+
+## 🧠 SUPABASE API (lib/supabaseApi.ts)
+
+```typescript
+import { supabase } from './supabaseClient';
+
+export async function fetchUserProfile(wallet: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('wallet', wallet)
+    .single();
+
+  if (error) {
+    console.error('Error fetching profile:', error);
+    return { level: 1, points: 0, discoveries: 0 };
+  }
+  return data;
+}
+
+export async function updateDiscovery(wallet: string | null, imageData: string) {
+  if (!wallet) return null;
+
+  // Increment discoveries + points
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('wallet', wallet)
+    .single();
+
+  if (error) return null;
+
+  const updated = {
+    ...profile,
+    discoveries: profile.discoveries + 1,
+    points: profile.points + 25,
+  };
+
+  await supabase.from('profiles').update(updated).eq('wallet', wallet);
+
+  // Store discovery record
+  await supabase.from('discoveries').insert({
+    wallet,
+    image: imageData,
+    timestamp: new Date().toISOString(),
+  });
+
+  return updated;
+}
+```
+
+---
+
+## 🗃️ SUPABASE TABLE SCHEMA (for reference)
+
+```
+Table: profiles
+- id: uuid (primary key)
+- wallet: text (unique)
+- level: integer
+- points: integer
+- discoveries: integer
+- created_at: timestamp
+
+Table: discoveries
+- id: uuid (primary key)
+- wallet: text (foreign key → profiles.wallet)
+- image: text (base64 or URL)
+- timestamp: timestamp
+```
+
+---
+
+## ✅ FINAL CHECKLIST
+
+* [x] Dashboard shows live progress and points.
+* [x] Wallet connects via ethers.js on Base.
+* [x] Base Pay simulates micropayments.
+* [x] Camera launches and captures photos.
+* [x] Captured images update Supabase user data.
+* [x] All API logic is modular and TypeScript-safe.
+* [x] Fully responsive UI (desktop + mobile).
+* [x] Secure and persistent Supabase integration (optional toggle).
+
+---
+
+### Notes for Cursor
+
+* Use Next.js App Router conventions (`use client`).
+* Respect Tailwind styling from screenshot.
+* Ensure camera uses HTTPS contexts.
+* Keep Base Pay logic modular — ready for real API integration.
+* Enable `.env.local` support for Supabase URL & Key.
+
+```
+
+---
+
+Would you like me to add a **Supabase SQL seed script** (to auto-create the `profiles` and `discoveries` tables) that you can run directly in your Supabase SQL editor or through the CLI?
+```
