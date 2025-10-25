@@ -22,9 +22,13 @@ export default function CameraComponent({ onClose, onCapture }: CameraComponentP
     return () => {
       stopCamera();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startCamera = async () => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    let isCancelled = false;
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -35,8 +39,8 @@ export default function CameraComponent({ onClose, onCapture }: CameraComponentP
       }
 
       // Add timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        if (isLoading) {
+      timeoutId = setTimeout(() => {
+        if (!isCancelled) {
           console.error('Camera loading timeout');
           setError('Camera is taking too long to load. Please try again.');
           setIsLoading(false);
@@ -56,7 +60,7 @@ export default function CameraComponent({ onClose, onCapture }: CameraComponentP
           }
         });
         console.log('Camera accessed successfully (user-facing)');
-      } catch (err) {
+      } catch {
         console.log('Failed to get user-facing camera, trying any available camera...');
         // Fallback to any available camera
         stream = await navigator.mediaDevices.getUserMedia({
@@ -70,7 +74,10 @@ export default function CameraComponent({ onClose, onCapture }: CameraComponentP
         streamRef.current = stream;
         
         // Clear timeout
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          isCancelled = true;
+        }
         
         // Force play immediately
         try {
@@ -88,17 +95,22 @@ export default function CameraComponent({ onClose, onCapture }: CameraComponentP
                 console.log('Video playing successfully after metadata loaded');
                 setIsLoading(false);
               }
-            } catch (err) {
-              console.error('Error playing video:', err);
+            } catch (error) {
+              console.error('Error playing video:', error);
               setIsLoading(false);
               setError('Camera loaded but failed to display. Please try again.');
             }
           };
         }
+      } else {
+        // No stream available
+        if (timeoutId) clearTimeout(timeoutId);
+        throw new Error('Failed to get camera stream');
       }
-    } catch (err) {
-      console.error('Error accessing camera:', err);
-      clearTimeout(timeoutId);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      if (timeoutId) clearTimeout(timeoutId);
+      isCancelled = true;
       setError('Unable to access camera. Please check permissions and ensure your device has a camera.');
       setIsLoading(false);
     }
