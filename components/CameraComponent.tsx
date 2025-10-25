@@ -49,6 +49,7 @@ export default function CameraComponent({ onClose, onCapture }: CameraComponentP
 
       // Request camera access - try user-facing first, fallback to any camera
       let stream: MediaStream | null = null;
+      let cameraError: Error | null = null;
       
       try {
         // Try to get user-facing camera first
@@ -60,52 +61,56 @@ export default function CameraComponent({ onClose, onCapture }: CameraComponentP
           }
         });
         console.log('Camera accessed successfully (user-facing)');
-      } catch {
+      } catch (err) {
         console.log('Failed to get user-facing camera, trying any available camera...');
-        // Fallback to any available camera
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true
-        });
-        console.log('Camera accessed successfully (any camera)');
+        try {
+          // Fallback to any available camera
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true
+          });
+          console.log('Camera accessed successfully (any camera)');
+        } catch (fallbackErr) {
+          console.error('All camera attempts failed:', fallbackErr);
+          cameraError = fallbackErr instanceof Error ? fallbackErr : new Error('Camera access failed');
+          throw cameraError;
+        }
       }
 
-      if (videoRef.current && stream) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        
-        // Clear timeout
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          isCancelled = true;
-        }
-        
-        // Force play immediately
-        try {
-          await videoRef.current.play();
-          console.log('Video playing successfully');
-          setIsLoading(false);
-        } catch (playError) {
-          console.error('Play error:', playError);
-          // Wait for metadata and try again
-          videoRef.current.onloadedmetadata = async () => {
-            console.log('Video metadata loaded, attempting play...');
-            try {
-              if (videoRef.current) {
-                await videoRef.current.play();
-                console.log('Video playing successfully after metadata loaded');
-                setIsLoading(false);
-              }
-            } catch (error) {
-              console.error('Error playing video:', error);
+      if (!stream || !videoRef.current) {
+        throw new Error('Camera stream not available');
+      }
+
+      videoRef.current.srcObject = stream;
+      streamRef.current = stream;
+      
+      // Clear timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        isCancelled = true;
+      }
+      
+      // Force play immediately
+      try {
+        await videoRef.current.play();
+        console.log('Video playing successfully');
+        setIsLoading(false);
+      } catch (playError) {
+        console.error('Play error:', playError);
+        // Wait for metadata and try again
+        videoRef.current.onloadedmetadata = async () => {
+          console.log('Video metadata loaded, attempting play...');
+          try {
+            if (videoRef.current) {
+              await videoRef.current.play();
+              console.log('Video playing successfully after metadata loaded');
               setIsLoading(false);
-              setError('Camera loaded but failed to display. Please try again.');
             }
-          };
-        }
-      } else {
-        // No stream available
-        if (timeoutId) clearTimeout(timeoutId);
-        throw new Error('Failed to get camera stream');
+          } catch (error) {
+            console.error('Error playing video:', error);
+            setIsLoading(false);
+            setError('Camera loaded but failed to display. Please try again.');
+          }
+        };
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
